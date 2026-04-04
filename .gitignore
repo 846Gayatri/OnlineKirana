@@ -1,0 +1,7 @@
+node_modules/
+.env
+data/gramfresh.db
+*.db
+.DS_Store
+dist/
+build/
