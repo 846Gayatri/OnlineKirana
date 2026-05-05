@@ -17,6 +17,7 @@ export default function CartPage() {
   const [upiApp, setUpiApp] = useState('gpay');
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [paymentSimulation, setPaymentSimulation] = useState(null);
+  const [pointsEarned, setPointsEarned] = useState(null);
 
   const fmtQty = (q, unitType) => {
     if (unitType === 'pieces') return `${q} pc${q > 1 ? 's' : ''}`;
@@ -44,24 +45,25 @@ export default function CartPage() {
       setPaymentSimulation('Deducting from GramFresh Wallet... 💳');
       await new Promise(r => setTimeout(r, 1000));
     }
-    
+
     setPaymentSimulation(null);
     setPlacing(true);
     try {
       const { data } = await API.post('/orders', { payment_method: paymentMethod });
       await fetchCart();
-      setToast(`Order ${data.order.order_number} placed!`);
-      setTimeout(() => navigate('/orders'), 1500);
+      setPointsEarned(data.points_earned || 0);
+      setToast(`Order ${data.order.order_number} placed! +${data.points_earned || 0} reward pts 🎁`);
+      setTimeout(() => navigate('/orders'), 2500);
     } catch (err) {
       alert(err.response?.data?.error || 'Order failed');
     } finally { setPlacing(false); }
   };
 
+  const estimatedPoints = Math.floor((summary.subtotal || 0) * 0.05);
+
   return (
     <>
-      <div className="page-header">
-        <h2>🛒 Cart</h2>
-      </div>
+      <div className="page-header"><h2>🛒 Cart</h2></div>
       <div className="page-content" style={{ padding: '0 16px 100px' }}>
         {items.length === 0 ? (
           <div className="empty">
@@ -69,13 +71,20 @@ export default function CartPage() {
             <div className="title">Your cart is empty</div>
             <div className="sub">Browse products and add items</div>
             <button onClick={() => navigate('/')}
-              style={{ marginTop: 16, padding: '10px 24px', borderRadius: 10, background: 'var(--primary)',
-                color: 'white', fontWeight: 700, fontSize: 14 }}>
+              style={{ marginTop: 16, padding: '10px 24px', borderRadius: 10, background: 'var(--primary)', color: 'white', fontWeight: 700, fontSize: 14 }}>
               Browse Products
             </button>
           </div>
         ) : (
           <>
+            {/* First order free banner */}
+            {summary.is_first_order && (
+              <div style={{ background: 'linear-gradient(135deg, #ecfdf5, #d1fae5)', borderRadius: 12, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #6ee7b733' }}>
+                <span style={{ fontSize: 18 }}>🎉</span>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#065f46' }}>First Order Perk: FREE Delivery!</div>
+              </div>
+            )}
+
             {items.map(item => (
               <div key={item.id} className="cart-item">
                 <div className="cart-item-img">
@@ -102,12 +111,20 @@ export default function CartPage() {
               <div className="cart-row">
                 <span>Delivery</span>
                 <span style={{ fontWeight: 600, color: summary.delivery_fee === 0 ? 'var(--primary)' : undefined }}>
-                  {summary.delivery_fee === 0 ? 'FREE' : `₹${summary.delivery_fee}`}
+                  {summary.delivery_fee === 0
+                    ? summary.is_first_order ? 'FREE 🎉 (1st order)' : 'FREE'
+                    : `₹${summary.delivery_fee}`}
                 </span>
               </div>
-              {summary.delivery_fee > 0 && (
-                <div className="free-delivery">
-                  Add ₹{summary.free_delivery_threshold - summary.subtotal} more for free delivery
+              {!summary.is_first_order && summary.delivery_fee > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                  Flat ₹5 delivery on all orders
+                </div>
+              )}
+              {estimatedPoints > 0 && (
+                <div className="cart-row" style={{ color: '#92400e', fontSize: 12 }}>
+                  <span>🎁 Rewards you'll earn</span>
+                  <span style={{ fontWeight: 700, color: '#f59e0b' }}>+{estimatedPoints} pts</span>
                 </div>
               )}
               <div className="cart-row total">
@@ -121,8 +138,7 @@ export default function CartPage() {
                 <div style={{ fontSize: 13, fontWeight: 700 }}>Delivery Address</div>
                 <button onClick={() => setShowAddressModal(true)} style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600 }}>Change</button>
               </div>
-              <div
-                onClick={() => setShowAddressModal(true)}
+              <div onClick={() => setShowAddressModal(true)}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--surface2)', padding: 14, borderRadius: 10, cursor: 'pointer' }}>
                 <div style={{ fontSize: 13 }}>
                   <div style={{ fontWeight: 600 }}>{selectedAddress?.label || 'Select Address'}</div>
@@ -140,7 +156,8 @@ export default function CartPage() {
                   { id: 'online', label: 'Credit / Debit Card', sub: 'Visa, Mastercard, RuPay', icon: '🏧' },
                   { id: 'cod', label: 'Cash on Delivery', sub: 'Pay with cash at doorstep', icon: '💵' },
                 ].map(pm => (
-                  <div key={pm.id} style={{ display: 'flex', flexDirection: 'column', background: paymentMethod === pm.id ? 'var(--primary-light)' : 'var(--white)', borderRadius: 10, border: paymentMethod === pm.id ? '2px solid var(--primary)' : '1px solid var(--border)', padding: 12, cursor: 'pointer' }}
+                  <div key={pm.id}
+                    style={{ display: 'flex', flexDirection: 'column', background: paymentMethod === pm.id ? 'var(--primary-light)' : 'var(--white)', borderRadius: 10, border: paymentMethod === pm.id ? '2px solid var(--primary)' : '1px solid var(--border)', padding: 12, cursor: 'pointer' }}
                     onClick={() => setPaymentMethod(pm.id)}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <input type="radio" checked={paymentMethod === pm.id} onChange={() => {}} style={{ pointerEvents: 'none' }} />
@@ -152,22 +169,12 @@ export default function CartPage() {
                     </div>
                     {pm.id === 'upi' && paymentMethod === 'upi' && (
                       <div style={{ marginLeft: 32, marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <button onClick={(e) => { e.stopPropagation(); setUpiApp('gpay'); }} 
-                          style={{ padding: '8px 4px', borderRadius: 8, border: upiApp === 'gpay' ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'white', fontSize: 12, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                          Google Pay
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); setUpiApp('phonepe'); }} 
-                          style={{ padding: '8px 4px', borderRadius: 8, border: upiApp === 'phonepe' ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'white', fontSize: 12, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                          PhonePe
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); setUpiApp('paytm'); }} 
-                          style={{ padding: '8px 4px', borderRadius: 8, border: upiApp === 'paytm' ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'white', fontSize: 12, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                          Paytm
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); setUpiApp('other'); }} 
-                          style={{ padding: '8px 4px', borderRadius: 8, border: upiApp === 'other' ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'white', fontSize: 12, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                          New UPI ID
-                        </button>
+                        {['gpay', 'phonepe', 'paytm', 'other'].map(app => (
+                          <button key={app} onClick={e => { e.stopPropagation(); setUpiApp(app); }}
+                            style={{ padding: '8px 4px', borderRadius: 8, border: upiApp === app ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'white', fontSize: 12, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                            {app === 'gpay' ? 'Google Pay' : app === 'phonepe' ? 'PhonePe' : app === 'paytm' ? 'Paytm' : 'New UPI ID'}
+                          </button>
+                        ))}
                         {upiApp === 'other' && (
                           <div style={{ gridColumn: 'span 2', marginTop: 4 }}>
                             <input type="text" placeholder="e.g. 9876543210@ybl" onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12 }} />
@@ -177,12 +184,12 @@ export default function CartPage() {
                     )}
                     {pm.id === 'online' && paymentMethod === 'online' && (
                       <div style={{ marginLeft: 32, marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <input type="text" placeholder="Card Number (Valid: 4111 ....)" onClick={e => e.stopPropagation()} 
+                        <input type="text" placeholder="Card Number" onClick={e => e.stopPropagation()}
                           style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, fontFamily: 'monospace' }} />
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                          <input type="text" placeholder="MM/YY" onClick={e => e.stopPropagation()} 
+                          <input type="text" placeholder="MM/YY" onClick={e => e.stopPropagation()}
                             style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
-                          <input type="password" placeholder="CVV" onClick={e => e.stopPropagation()} 
+                          <input type="password" placeholder="CVV" onClick={e => e.stopPropagation()}
                             style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
                         </div>
                       </div>
@@ -196,25 +203,18 @@ export default function CartPage() {
               {placing ? 'Placing Order...' : `Place Order — ₹${summary.total}`}
             </button>
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)', marginTop: 8 }}>
-              🚚 30-min delivery
+              🚚 30-min delivery · 🎁 Earn {estimatedPoints} reward pts on this order
             </p>
           </>
         )}
       </div>
-      
+
       {showAddressModal && <AddressSheet onClose={() => setShowAddressModal(false)} />}
       {toast && <div className="toast">✓ {toast}</div>}
 
       {paymentSimulation && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.8)', color: 'white', zIndex: 9999,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
-        }}>
-          <div style={{
-            background: 'var(--white)', color: 'var(--text)', padding: 30,
-            borderRadius: 16, textAlign: 'center', maxWidth: 300, width: '90%'
-          }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', color: 'white', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--white)', color: 'var(--text)', padding: 30, borderRadius: 16, textAlign: 'center', maxWidth: 300, width: '90%' }}>
             <div className="spinner" style={{ marginBottom: 20, width: 40, height: 40, border: '4px solid var(--primary-light)', borderTopColor: 'var(--primary)' }}></div>
             <h3 style={{ fontSize: 16, fontWeight: 800 }}>Processing Payment</h3>
             <p style={{ fontSize: 14, color: 'var(--text2)', marginTop: 8 }}>{paymentSimulation}</p>

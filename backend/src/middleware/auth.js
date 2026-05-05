@@ -27,7 +27,7 @@ function requireAuth(req, res, next) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     const db = getDb();
-    const user = db.prepare('SELECT id, phone, name, role, is_active FROM users WHERE id = ?').get(decoded.id);
+    const user = db.prepare('SELECT id, phone, name, role, is_active, rewards_points FROM users WHERE id = ?').get(decoded.id);
     
     if (!user || !user.is_active) {
       return res.status(401).json({ error: 'User not found or inactive' });
@@ -68,7 +68,7 @@ function optionalAuth(req, res, next) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     const db = getDb();
-    const user = db.prepare('SELECT id, phone, name, role, is_active FROM users WHERE id = ?').get(decoded.id);
+    const user = db.prepare('SELECT id, phone, name, role, is_active, rewards_points FROM users WHERE id = ?').get(decoded.id);
     if (user && user.is_active) {
       req.user = user;
     }

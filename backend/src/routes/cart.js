@@ -47,8 +47,10 @@ router.get('/', requireAuth, (req, res, next) => {
       };
     });
 
-    const deliveryFee = subtotal >= 500 ? 0 : 30; // Free delivery above ₹500
-    
+    const orderCount = db.prepare('SELECT COUNT(*) as count FROM orders WHERE user_id = ?').get(req.user.id).count;
+    const isFirstOrder = orderCount === 0;
+    const deliveryFee = isFirstOrder ? 0 : 5;
+
     res.json({
       items: enriched,
       summary: {
@@ -56,7 +58,8 @@ router.get('/', requireAuth, (req, res, next) => {
         subtotal,
         delivery_fee: deliveryFee,
         total: subtotal + deliveryFee,
-        free_delivery_threshold: 500
+        is_first_order: isFirstOrder,
+        flat_delivery: 5
       }
     });
   } catch (err) {

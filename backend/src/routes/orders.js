@@ -57,7 +57,9 @@ router.post('/', requireAuth, (req, res, next) => {
       };
     });
 
-    const deliveryFee = subtotal >= 500 ? 0 : 30;
+    const orderCount = db.prepare('SELECT COUNT(*) as count FROM orders WHERE user_id = ?').get(req.user.id).count;
+    const isFirstOrder = orderCount === 0;
+    const deliveryFee = isFirstOrder ? 0 : 5;
     const total = subtotal + deliveryFee;
     const orderNumber = 'GF-' + uuidv4().split('-')[0].toUpperCase();
 
@@ -95,9 +97,15 @@ router.post('/', requireAuth, (req, res, next) => {
 
     createOrder();
 
+    // Award 5% of subtotal as reward points (1 point = ₹1)
+    const pointsEarned = Math.floor(subtotal * 0.05);
+    if (pointsEarned > 0) {
+      db.prepare('UPDATE users SET rewards_points = rewards_points + ? WHERE id = ?').run(pointsEarned, req.user.id);
+    }
+
     const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
 
-    res.status(201).json({ order });
+    res.status(201).json({ order, points_earned: pointsEarned });
   } catch (err) {
     next(err);
   }
