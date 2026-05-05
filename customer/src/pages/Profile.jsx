@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../App';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Phone, Wallet, MapPin, Package, HelpCircle, Info, X, Star, Gift, Truck } from 'lucide-react';
+import { LogOut, Phone, Wallet, MapPin, Package, HelpCircle, Info, X, Gift, CreditCard } from 'lucide-react';
 import AddressSheet from '../components/AddressSheet';
 import API from '../api';
 
@@ -89,7 +89,8 @@ export default function ProfilePage() {
           {[
             { label: 'My Orders', icon: <Package size={20} color="var(--primary)" />, action: () => navigate('/orders') },
             { label: 'Saved Addresses', icon: <MapPin size={20} color="var(--orange)" />, action: () => setShowAddressModal(true) },
-            { label: 'GramFresh Wallet', icon: <Wallet size={20} color="var(--blue)" />, action: () => setShowWalletModal(true) },
+            { label: 'Payment Methods', icon: <CreditCard size={20} color="var(--blue)" />, action: () => navigate('/payment-methods') },
+            { label: 'GramFresh Wallet', icon: <Wallet size={20} color="#8b5cf6" />, action: () => setShowWalletModal(true) },
             { label: 'Rewards & Discounts', icon: <Gift size={20} color="#f59e0b" />, action: () => alert(`You have ${rewardsPoints} reward points (₹${rewardsPoints} value).\n\nEarn 5% back on every order!\nFlat ₹5 delivery on all orders.\nFirst order ships FREE!`) },
             { label: 'Help & Support', icon: <HelpCircle size={20} color="var(--red)" />, action: () => alert('Support: 1800-GRAM-FRESH\nEmail: support@gramfresh.in') },
             { label: 'About GramFresh', icon: <Info size={20} color="var(--green)" />, action: () => alert('GramFresh v1.0\nDelivering fresh micro-quantities in Vijayawada!') },

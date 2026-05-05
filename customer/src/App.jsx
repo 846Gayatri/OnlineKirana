@@ -7,6 +7,7 @@ import CartPage from './pages/Cart';
 import OrdersPage from './pages/Orders';
 import LoginPage from './pages/Login';
 import ProfilePage from './pages/Profile';
+import PaymentMethodsPage from './pages/PaymentMethods';
 
 const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
@@ -153,6 +154,7 @@ export default function App() {
                 <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
                 <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+                <Route path="/payment-methods" element={<ProtectedRoute><PaymentMethodsPage /></ProtectedRoute>} />
               </Routes>
               <BottomNav />
             </div>

@@ -1,10 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Gift } from 'lucide-react';
+import { Trash2, Gift, ChevronRight } from 'lucide-react';
 import { useCart, useAuth, useAddress } from '../App';
 import API from '../api';
 import { getImg } from './Home';
 import AddressSheet from '../components/AddressSheet';
+
+const STORAGE_KEY = 'gf_payment_methods';
+function loadSaved() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+}
+
+const NET_BANKS = [
+  { id: 'sbi', name: 'SBI', full: 'State Bank of India' },
+  { id: 'hdfc', name: 'HDFC', full: 'HDFC Bank' },
+  { id: 'icici', name: 'ICICI', full: 'ICICI Bank' },
+  { id: 'axis', name: 'Axis', full: 'Axis Bank' },
+  { id: 'kotak', name: 'Kotak', full: 'Kotak Mahindra Bank' },
+  { id: 'bob', name: 'BoB', full: 'Bank of Baroda' },
+  { id: 'pnb', name: 'PNB', full: 'Punjab National Bank' },
+  { id: 'canara', name: 'Canara', full: 'Canara Bank' },
+];
+
+const UPI_APPS_STATIC = [
+  { id: 'gpay', name: 'Google Pay' },
+  { id: 'phonepe', name: 'PhonePe' },
+  { id: 'paytm', name: 'Paytm' },
+  { id: 'other', name: 'New UPI ID' },
+];
 
 export default function CartPage() {
   const { items, summary, removeItem, fetchCart } = useCart();
@@ -15,16 +38,32 @@ export default function CartPage() {
   const [toast, setToast] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const [upiApp, setUpiApp] = useState('gpay');
+  const [manualUpiId, setManualUpiId] = useState('');
+  const [selectedSavedUpi, setSelectedSavedUpi] = useState(null);
+  const [selectedSavedCard, setSelectedSavedCard] = useState(null);
+  const [selectedBank, setSelectedBank] = useState('sbi');
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [paymentSimulation, setPaymentSimulation] = useState(null);
   const [rewardsBalance, setRewardsBalance] = useState(0);
   const [useRewards, setUseRewards] = useState(false);
+  const [saved, setSaved] = useState(loadSaved());
 
   useEffect(() => {
     if (isLoggedIn) {
       API.get('/auth/me').then(r => setRewardsBalance(r.data.user?.rewards_points || 0)).catch(() => {});
     }
+    // Auto-select primary UPI if saved
+    const s = loadSaved();
+    setSaved(s);
+    if (s.primary_upi && s.upis?.length) {
+      const primary = s.upis.find(u => u.id === s.primary_upi);
+      if (primary) setSelectedSavedUpi(primary);
+    }
+    if (s.cards?.length) setSelectedSavedCard(s.cards[0]);
   }, [isLoggedIn]);
+
+  const savedUpis = saved.upis || [];
+  const savedCards = saved.cards || [];
 
   const fmtQty = (q, unitType) => {
     if (unitType === 'pieces') return `${q} pc${q > 1 ? 's' : ''}`;
@@ -40,20 +79,27 @@ export default function CartPage() {
 
   const placeOrder = async () => {
     if (paymentMethod === 'upi') {
-      const appName = upiApp === 'gpay' ? 'Google Pay' : upiApp === 'phonepe' ? 'PhonePe' : upiApp === 'paytm' ? 'Paytm' : 'UPI App';
-      setPaymentSimulation(`Opening ${appName}...`);
-      await new Promise(r => setTimeout(r, 1500));
-      setPaymentSimulation(`Awaiting payment from ${appName}...`);
+      setPaymentSimulation('Redirecting to UPI app...');
+      await new Promise(r => setTimeout(r, 1200));
+      setPaymentSimulation('Awaiting UPI confirmation...');
       await new Promise(r => setTimeout(r, 2000));
       setPaymentSimulation('Payment Successful! ✅');
-      await new Promise(r => setTimeout(r, 1000));
-    } else if (paymentMethod === 'online') {
-      setPaymentSimulation('Verifying Card Details...');
-      await new Promise(r => setTimeout(r, 1000));
-      setPaymentSimulation('Processing Payment securely... 🔒');
+      await new Promise(r => setTimeout(r, 900));
+    } else if (paymentMethod === 'card') {
+      setPaymentSimulation('Verifying card details...');
+      await new Promise(r => setTimeout(r, 900));
+      setPaymentSimulation('Processing payment securely 🔒');
       await new Promise(r => setTimeout(r, 1500));
       setPaymentSimulation('Payment Successful! ✅');
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 900));
+    } else if (paymentMethod === 'netbanking') {
+      const bank = NET_BANKS.find(b => b.id === selectedBank);
+      setPaymentSimulation(`Redirecting to ${bank?.full || 'your bank'}...`);
+      await new Promise(r => setTimeout(r, 1200));
+      setPaymentSimulation('Awaiting bank confirmation...');
+      await new Promise(r => setTimeout(r, 2000));
+      setPaymentSimulation('Payment Successful! ✅');
+      await new Promise(r => setTimeout(r, 900));
     } else if (paymentMethod === 'wallet') {
       setPaymentSimulation('Deducting from GramFresh Wallet... 💳');
       await new Promise(r => setTimeout(r, 1000));
@@ -78,6 +124,14 @@ export default function CartPage() {
     } finally { setPlacing(false); }
   };
 
+  const PAYMENT_METHODS = [
+    { id: 'wallet', label: 'GramFresh Wallet', sub: 'Balance: ₹500 · 2% cashback', icon: '💳' },
+    { id: 'upi', label: 'UPI', sub: savedUpis.length > 0 ? `${savedUpis.length} saved ID${savedUpis.length > 1 ? 's' : ''}` : 'Google Pay, PhonePe, Paytm', icon: '📱' },
+    { id: 'card', label: 'Credit / Debit Card', sub: savedCards.length > 0 ? `${savedCards.length} saved card${savedCards.length > 1 ? 's' : ''}` : 'Visa, Mastercard, RuPay', icon: '🏧' },
+    { id: 'netbanking', label: 'Net Banking', sub: 'All major banks supported', icon: '🏦' },
+    { id: 'cod', label: 'Cash on Delivery', sub: 'Pay with cash at doorstep', icon: '💵' },
+  ];
+
   return (
     <>
       <div className="page-header"><h2>🛒 Cart</h2></div>
@@ -101,6 +155,7 @@ export default function CartPage() {
               </div>
             )}
 
+            {/* Cart items */}
             {items.map(item => (
               <div key={item.id} className="cart-item">
                 <div className="cart-item-img">
@@ -119,7 +174,7 @@ export default function CartPage() {
               </div>
             ))}
 
-            {/* Order Summary */}
+            {/* Summary */}
             <div className="cart-summary">
               <div className="cart-row">
                 <span>Subtotal ({summary.item_count} items)</span>
@@ -154,23 +209,11 @@ export default function CartPage() {
               </div>
             </div>
 
-            {/* Rewards Redemption Card */}
+            {/* Rewards toggle */}
             {rewardsBalance > 0 && (
-              <div style={{
-                background: useRewards
-                  ? 'linear-gradient(135deg, #fef9ec, #fef3c7)'
-                  : 'var(--surface2)',
-                border: useRewards ? '2px solid #f59e0b' : '1px solid var(--border)',
-                borderRadius: 12, padding: 14, marginBottom: 16,
-                display: 'flex', alignItems: 'center', gap: 12,
-                cursor: 'pointer', transition: 'all 0.2s'
-              }} onClick={() => setUseRewards(!useRewards)}>
-                <div style={{
-                  width: 40, height: 40, borderRadius: '50%',
-                  background: useRewards ? '#f59e0b' : 'var(--border)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, transition: 'background 0.2s'
-                }}>
+              <div style={{ background: useRewards ? 'linear-gradient(135deg, #fef9ec, #fef3c7)' : 'var(--surface2)', border: useRewards ? '2px solid #f59e0b' : '1px solid var(--border)', borderRadius: 12, padding: 14, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+                onClick={() => setUseRewards(!useRewards)}>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: useRewards ? '#f59e0b' : 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Gift size={18} color="white" />
                 </div>
                 <div style={{ flex: 1 }}>
@@ -181,13 +224,7 @@ export default function CartPage() {
                     You have <strong style={{ color: '#f59e0b' }}>{rewardsBalance} pts</strong> ≈ ₹{rewardsBalance} available
                   </div>
                 </div>
-                <div style={{
-                  width: 22, height: 22, borderRadius: 6,
-                  background: useRewards ? '#f59e0b' : 'var(--white)',
-                  border: useRewards ? '2px solid #f59e0b' : '2px solid var(--border)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, fontSize: 13, color: 'white', fontWeight: 800
-                }}>
+                <div style={{ width: 22, height: 22, borderRadius: 6, background: useRewards ? '#f59e0b' : 'var(--white)', border: useRewards ? '2px solid #f59e0b' : '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, color: 'white', fontWeight: 800 }}>
                   {useRewards ? '✓' : ''}
                 </div>
               </div>
@@ -210,14 +247,15 @@ export default function CartPage() {
 
             {/* Payment Method */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Payment Method</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Payment Method</div>
+                <button onClick={() => navigate('/payment-methods')}
+                  style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Manage <ChevronRight size={13} />
+                </button>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {[
-                  { id: 'wallet', label: 'GramFresh Wallet', sub: 'Available balance: ₹500', icon: '💳' },
-                  { id: 'upi', label: 'UPI', sub: 'Google Pay, PhonePe, Paytm', icon: '📱' },
-                  { id: 'online', label: 'Credit / Debit Card', sub: 'Visa, Mastercard, RuPay', icon: '🏧' },
-                  { id: 'cod', label: 'Cash on Delivery', sub: 'Pay with cash at doorstep', icon: '💵' },
-                ].map(pm => (
+                {PAYMENT_METHODS.map(pm => (
                   <div key={pm.id}
                     style={{ display: 'flex', flexDirection: 'column', background: paymentMethod === pm.id ? 'var(--primary-light)' : 'var(--white)', borderRadius: 10, border: paymentMethod === pm.id ? '2px solid var(--primary)' : '1px solid var(--border)', padding: 12, cursor: 'pointer' }}
                     onClick={() => setPaymentMethod(pm.id)}>
@@ -229,32 +267,102 @@ export default function CartPage() {
                         <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{pm.sub}</div>
                       </div>
                     </div>
+
+                    {/* UPI expanded */}
                     {pm.id === 'upi' && paymentMethod === 'upi' && (
-                      <div style={{ marginLeft: 32, marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        {['gpay', 'phonepe', 'paytm', 'other'].map(app => (
-                          <button key={app} onClick={e => { e.stopPropagation(); setUpiApp(app); }}
-                            style={{ padding: '8px 4px', borderRadius: 8, border: upiApp === app ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'white', fontSize: 12, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                            {app === 'gpay' ? 'Google Pay' : app === 'phonepe' ? 'PhonePe' : app === 'paytm' ? 'Paytm' : 'New UPI ID'}
-                          </button>
-                        ))}
-                        {upiApp === 'other' && (
-                          <div style={{ gridColumn: 'span 2', marginTop: 4 }}>
-                            <input type="text" placeholder="e.g. 9876543210@ybl" onClick={e => e.stopPropagation()}
-                              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12 }} />
+                      <div style={{ marginLeft: 32, marginTop: 14 }}>
+                        {savedUpis.length > 0 && (
+                          <>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>SAVED UPI IDS</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                              {savedUpis.map(u => (
+                                <div key={u.id} onClick={e => { e.stopPropagation(); setSelectedSavedUpi(u); setUpiApp('saved'); }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `2px solid ${selectedSavedUpi?.id === u.id && upiApp === 'saved' ? 'var(--primary)' : 'var(--border)'}`, background: selectedSavedUpi?.id === u.id && upiApp === 'saved' ? 'white' : 'var(--surface2)', cursor: 'pointer' }}>
+                                  <input type="radio" readOnly checked={selectedSavedUpi?.id === u.id && upiApp === 'saved'} style={{ pointerEvents: 'none' }} />
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700 }}>{u.nickname}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>{u.upi_id}</div>
+                                  </div>
+                                  {u.id === saved.primary_upi && <span style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 700, background: 'var(--primary-light)', padding: '2px 6px', borderRadius: 6 }}>PRIMARY</span>}
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>OR USE ANOTHER APP</div>
+                          </>
+                        )}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          {UPI_APPS_STATIC.map(app => (
+                            <button key={app.id} onClick={e => { e.stopPropagation(); setUpiApp(app.id); setSelectedSavedUpi(null); }}
+                              style={{ padding: '8px 4px', borderRadius: 8, border: upiApp === app.id && !selectedSavedUpi ? '2px solid var(--primary)' : '1px solid var(--border)', background: 'white', fontSize: 12, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
+                              {app.name}
+                            </button>
+                          ))}
+                        </div>
+                        {upiApp === 'other' && !selectedSavedUpi && (
+                          <div style={{ marginTop: 10 }}>
+                            <input type="text" placeholder="e.g. 9876543210@ybl" value={manualUpiId}
+                              onChange={e => setManualUpiId(e.target.value)}
+                              onClick={e => e.stopPropagation()}
+                              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, fontFamily: 'monospace', boxSizing: 'border-box' }} />
                           </div>
                         )}
                       </div>
                     )}
-                    {pm.id === 'online' && paymentMethod === 'online' && (
-                      <div style={{ marginLeft: 32, marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <input type="text" placeholder="Card Number" onClick={e => e.stopPropagation()}
-                          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, fontFamily: 'monospace' }} />
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                          <input type="text" placeholder="MM/YY" onClick={e => e.stopPropagation()}
-                            style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
-                          <input type="password" placeholder="CVV" onClick={e => e.stopPropagation()}
-                            style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
+
+                    {/* Card expanded */}
+                    {pm.id === 'card' && paymentMethod === 'card' && (
+                      <div style={{ marginLeft: 32, marginTop: 14 }}>
+                        {savedCards.length > 0 && (
+                          <>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>SAVED CARDS</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                              {savedCards.map(card => (
+                                <div key={card.id} onClick={e => { e.stopPropagation(); setSelectedSavedCard(card); }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `2px solid ${selectedSavedCard?.id === card.id ? 'var(--primary)' : 'var(--border)'}`, background: selectedSavedCard?.id === card.id ? 'white' : 'var(--surface2)', cursor: 'pointer' }}>
+                                  <input type="radio" readOnly checked={selectedSavedCard?.id === card.id} style={{ pointerEvents: 'none' }} />
+                                  <div style={{ fontSize: 20 }}>💳</div>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700 }}>{card.nickname || `${card.network.toUpperCase()} ••••${card.last4}`}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>•••• •••• •••• {card.last4} · {card.expiry}</div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>OR ENTER NEW CARD</div>
+                          </>
+                        )}
+                        {(!savedCards.length || !selectedSavedCard) && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <input type="text" placeholder="Card Number" onClick={e => e.stopPropagation()}
+                              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, fontFamily: 'monospace', boxSizing: 'border-box' }} />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                              <input type="text" placeholder="MM/YY" onClick={e => e.stopPropagation()}
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box' }} />
+                              <input type="password" placeholder="CVV" onClick={e => e.stopPropagation()}
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box' }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Net Banking expanded */}
+                    {pm.id === 'netbanking' && paymentMethod === 'netbanking' && (
+                      <div style={{ marginLeft: 32, marginTop: 14 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>SELECT YOUR BANK</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 10 }}>
+                          {NET_BANKS.map(bank => (
+                            <button key={bank.id} onClick={e => { e.stopPropagation(); setSelectedBank(bank.id); }}
+                              style={{ padding: '8px 4px', borderRadius: 8, border: selectedBank === bank.id ? '2px solid var(--primary)' : '1px solid var(--border)', background: selectedBank === bank.id ? 'var(--primary-light)' : 'white', fontSize: 11, fontWeight: 700, color: selectedBank === bank.id ? 'var(--primary-dark)' : 'var(--text)', cursor: 'pointer', textAlign: 'center' }}>
+                              {bank.name}
+                            </button>
+                          ))}
                         </div>
+                        {selectedBank && (
+                          <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 10px', background: 'var(--surface2)', borderRadius: 8 }}>
+                            You'll be redirected to <strong>{NET_BANKS.find(b => b.id === selectedBank)?.full}</strong> secure portal
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -278,9 +386,9 @@ export default function CartPage() {
       {toast && <div className="toast">✓ {toast}</div>}
 
       {paymentSimulation && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'var(--white)', color: 'var(--text)', padding: 30, borderRadius: 16, textAlign: 'center', maxWidth: 300, width: '90%' }}>
-            <div className="spinner" style={{ marginBottom: 20, width: 40, height: 40, border: '4px solid var(--primary-light)', borderTopColor: 'var(--primary)' }}></div>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--white)', color: 'var(--text)', padding: 30, borderRadius: 20, textAlign: 'center', maxWidth: 300, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div className="spinner" style={{ marginBottom: 20, width: 44, height: 44, border: '4px solid var(--primary-light)', borderTopColor: 'var(--primary)', margin: '0 auto 20px' }}></div>
             <h3 style={{ fontSize: 16, fontWeight: 800 }}>Processing Payment</h3>
             <p style={{ fontSize: 14, color: 'var(--text2)', marginTop: 8 }}>{paymentSimulation}</p>
           </div>
