@@ -6,6 +6,8 @@ import ProductDetail from '../components/ProductDetail';
 import AddressSheet from '../components/AddressSheet';
 
 export const getImg = (p) => {
+  if (p?.image_url) return p.image_url;
+
   const c = (p?.category_name || '').toLowerCase();
   const n = (p?.name || '').toLowerCase();
   

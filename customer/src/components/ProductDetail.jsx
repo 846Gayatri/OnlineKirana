@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Keyboard } from 'lucide-react';
 import { useAuth, useCart } from '../App';
 import { useNavigate } from 'react-router-dom';
 import API from '../api';
@@ -12,6 +12,9 @@ export default function ProductDetail({ product, onClose, onAdded }) {
   const [detail, setDetail] = useState(null);
   const [qty, setQty] = useState(product.min_qty_grams);
   const [adding, setAdding] = useState(false);
+  const [typingQty, setTypingQty] = useState(false);
+  const [inputVal, setInputVal] = useState('');
+  const inputRef = useRef(null);
 
   useEffect(() => {
     API.get(`/products/${product.id}`).then(r => {
@@ -38,6 +41,11 @@ export default function ProductDetail({ product, onClose, onAdded }) {
     return q >= 1000 ? `${(q / 1000).toFixed(1)}kg` : `${q}g`;
   };
 
+  const snapToStep = (raw) => {
+    const clamped = Math.max(min, Math.min(max, raw));
+    return Math.round((clamped - min) / step) * step + min;
+  };
+
   const price = calcPrice(qty);
   const priceLabel = unitType === 'pieces' ? '/pc' : unitType === 'liters' ? '/L' : '/kg';
 
@@ -46,6 +54,27 @@ export default function ProductDetail({ product, onClose, onAdded }) {
 
   const quickQtys = detail.price_table?.map(p => p.quantity) ||
     [100, 250, 500, 1000, 2000].filter(q => q >= min && q <= max);
+
+  const openTyping = () => {
+    setInputVal(String(qty));
+    setTypingQty(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const commitTyped = () => {
+    const raw = parseFloat(inputVal);
+    if (!isNaN(raw) && raw > 0) {
+      setQty(snapToStep(Math.round(raw)));
+    }
+    setTypingQty(false);
+  };
+
+  const handleInputKey = (e) => {
+    if (e.key === 'Enter') commitTyped();
+    if (e.key === 'Escape') setTypingQty(false);
+  };
+
+  const unitSuffix = unitType === 'pieces' ? 'pcs' : unitType === 'liters' ? 'ml' : 'g';
 
   const handleAdd = async () => {
     if (!isLoggedIn) { onClose(); navigate('/login'); return; }
@@ -69,17 +98,60 @@ export default function ProductDetail({ product, onClose, onAdded }) {
           <div className="detail-name">{detail.name}</div>
           {detail.name_local && <div className="detail-local">{detail.name_local}</div>}
           <div className="detail-category">{detail.category_icon} {detail.category_name}</div>
-          {detail.description && <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>{detail.description}</p>}
+          {detail.description && (
+            <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16, lineHeight: 1.55 }}>
+              {detail.description}
+            </p>
+          )}
 
           <div className="qty-picker">
-            <div className="label">Select Quantity</div>
+            <div className="label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Select Quantity</span>
+              <button
+                onClick={openTyping}
+                title="Type a quantity"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  fontSize: 12, color: 'var(--primary)', background: 'none',
+                  border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0
+                }}
+              >
+                <Keyboard size={13} /> Type qty
+              </button>
+            </div>
+
             <div className="qty-slider-row">
               <button className="qty-btn" onClick={decrease}>−</button>
-              <div className="qty-display">{fmtQty(qty)}</div>
+
+              {typingQty ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}>
+                  <input
+                    ref={inputRef}
+                    type="number"
+                    value={inputVal}
+                    onChange={e => setInputVal(e.target.value)}
+                    onBlur={commitTyped}
+                    onKeyDown={handleInputKey}
+                    style={{
+                      width: 80, textAlign: 'center', fontSize: 18, fontWeight: 700,
+                      border: '2px solid var(--primary)', borderRadius: 8, padding: '4px 6px',
+                      outline: 'none', color: 'var(--text1)', background: 'var(--surface)'
+                    }}
+                  />
+                  <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>{unitSuffix}</span>
+                </div>
+              ) : (
+                <div className="qty-display" onClick={openTyping} style={{ cursor: 'text' }} title="Click to type a quantity">
+                  {fmtQty(qty)}
+                </div>
+              )}
+
               <button className="qty-btn" onClick={increase}>+</button>
             </div>
+
             <input type="range" className="qty-slider" min={min} max={max} step={step}
               value={qty} onChange={e => setQty(Number(e.target.value))} />
+
             <div className="quick-qtys">
               {quickQtys.map(q => (
                 <button key={q} className={`quick-qty ${qty === q ? 'active' : ''}`}
