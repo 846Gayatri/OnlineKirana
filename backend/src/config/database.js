@@ -1,4 +1,4 @@
-const { DatabaseSync } = require('node:sqlite');
+const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
@@ -15,18 +15,15 @@ function initDatabase() {
   const dbPath = path.resolve(process.env.DB_PATH || './data/gramfresh.db');
   const dbDir = path.dirname(dbPath);
   
-  // Ensure data directory exists
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
   }
 
-  db = new DatabaseSync(dbPath);
+  db = new Database(dbPath);
   
-  // Enable WAL mode for better concurrent read performance
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA foreign_keys = ON;');
   
-  // Run migrations
   runMigrations();
   
   return db;
@@ -35,7 +32,6 @@ function initDatabase() {
 function runMigrations() {
   const migrationsDir = path.join(__dirname, '..', 'models', 'migrations');
   
-  // Create migrations tracking table
   db.exec(`
     CREATE TABLE IF NOT EXISTS _migrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

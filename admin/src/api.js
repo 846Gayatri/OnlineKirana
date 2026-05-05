@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API = axios.create({ baseURL: 'http://localhost:3000/api' });
+const API = axios.create({ baseURL: '/api' });
 
 API.interceptors.request.use(cfg => {
   const token = localStorage.getItem('gf_admin_token');

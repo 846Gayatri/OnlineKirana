@@ -63,8 +63,7 @@ router.post('/', requireAuth, (req, res, next) => {
 
     // Create order in a transaction
     let orderId;
-    try {
-      db.exec('BEGIN IMMEDIATE');
+    const createOrder = db.transaction(() => {
       const orderResult = db.prepare(`
         INSERT INTO orders (order_number, user_id, address_id, status, subtotal, delivery_fee, total,
           payment_method, delivery_slot, notes)
@@ -91,14 +90,10 @@ router.post('/', requireAuth, (req, res, next) => {
         );
       }
 
-      // Clear cart
       db.prepare('DELETE FROM cart_items WHERE user_id = ?').run(req.user.id);
-      
-      db.exec('COMMIT');
-    } catch (txnErr) {
-      db.exec('ROLLBACK');
-      throw txnErr;
-    }
+    });
+
+    createOrder();
 
     const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
 
