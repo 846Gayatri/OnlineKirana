@@ -1,11 +1,12 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, FolderOpen, ShoppingCart, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, FolderOpen, ShoppingCart, Users, LogOut } from 'lucide-react';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/products', icon: Package, label: 'Products' },
   { to: '/categories', icon: FolderOpen, label: 'Categories' },
   { to: '/orders', icon: ShoppingCart, label: 'Orders' },
+  { to: '/customers', icon: Users, label: 'Customers' },
 ];
 
 export default function Layout() {

@@ -24,6 +24,7 @@ const categoryRoutes = require('./src/routes/categories');
 const cartRoutes = require('./src/routes/cart');
 const orderRoutes = require('./src/routes/orders');
 const reviewRoutes = require('./src/routes/reviews');
+const customerRoutes = require('./src/routes/customers');
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', name: 'GramFresh API', version: '1.0.0', timestamp: new Date().toISOString() });
@@ -35,6 +36,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/customers', customerRoutes);
 
 // --------------- Error Handler ---------------
 app.use(errorHandler);
