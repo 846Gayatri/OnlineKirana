@@ -12,7 +12,7 @@ const { v4: uuidv4 } = require('uuid');
 router.post('/', requireAuth, (req, res, next) => {
   try {
     const db = getDb();
-    const { address_id, payment_method = 'cod', delivery_slot, notes } = req.body;
+    const { address_id, payment_method = 'cod', delivery_slot, notes, use_rewards = false } = req.body;
 
     // Get cart items
     const cartItems = db.prepare(`
@@ -60,7 +60,16 @@ router.post('/', requireAuth, (req, res, next) => {
     const orderCount = db.prepare('SELECT COUNT(*) as count FROM orders WHERE user_id = ?').get(req.user.id).count;
     const isFirstOrder = orderCount === 0;
     const deliveryFee = isFirstOrder ? 0 : 5;
-    const total = subtotal + deliveryFee;
+
+    // Rewards redemption
+    const freshUser = db.prepare('SELECT rewards_points FROM users WHERE id = ?').get(req.user.id);
+    const availablePoints = freshUser?.rewards_points || 0;
+    const pointsToRedeem = use_rewards
+      ? Math.min(availablePoints, Math.floor(subtotal + deliveryFee))
+      : 0;
+    const rewardsDiscount = pointsToRedeem;
+
+    const total = subtotal + deliveryFee - rewardsDiscount;
     const orderNumber = 'GF-' + uuidv4().split('-')[0].toUpperCase();
 
     // Create order in a transaction
@@ -75,6 +84,11 @@ router.post('/', requireAuth, (req, res, next) => {
         subtotal, deliveryFee, total,
         payment_method, delivery_slot || null, notes || null
       );
+      // Deduct redeemed points immediately inside transaction
+      if (pointsToRedeem > 0) {
+        db.prepare('UPDATE users SET rewards_points = MAX(0, rewards_points - ?) WHERE id = ?')
+          .run(pointsToRedeem, req.user.id);
+      }
 
       orderId = orderResult.lastInsertRowid;
 
@@ -105,7 +119,7 @@ router.post('/', requireAuth, (req, res, next) => {
 
     const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
 
-    res.status(201).json({ order, points_earned: pointsEarned });
+    res.status(201).json({ order, points_earned: pointsEarned, points_redeemed: pointsToRedeem });
   } catch (err) {
     next(err);
   }

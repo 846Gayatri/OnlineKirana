@@ -14,7 +14,7 @@ export default function Products() {
 
   function defaultForm() {
     return { name:'', name_local:'', description:'', category_id:'', price_per_kg:'',
-      min_qty_grams:100, max_qty_grams:10000, qty_step_grams:50, unit_type:'grams' };
+      min_qty_grams:100, max_qty_grams:10000, qty_step_grams:50, unit_type:'grams', image_url:'' };
   }
 
   const fetchProducts = () => {
@@ -32,7 +32,8 @@ export default function Products() {
     setEditing(p);
     setForm({ name:p.name, name_local:p.name_local||'', description:p.description||'',
       category_id: p.category_id||'', price_per_kg:p.price_per_kg, min_qty_grams:p.min_qty_grams,
-      max_qty_grams:p.max_qty_grams, qty_step_grams:p.qty_step_grams, unit_type:p.unit_type });
+      max_qty_grams:p.max_qty_grams, qty_step_grams:p.qty_step_grams, unit_type:p.unit_type,
+      image_url: p.image_url||'' });
     setShowModal(true);
   };
 
@@ -145,6 +146,20 @@ export default function Products() {
                   <label className="form-label">Description</label>
                   <textarea className="form-textarea" value={form.description}
                     onChange={e => setForm({...form, description:e.target.value})} placeholder="Optional description"/>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Product Image URL</label>
+                  <input className="form-input" value={form.image_url}
+                    onChange={e => setForm({...form, image_url:e.target.value})}
+                    placeholder="https://example.com/image.jpg"/>
+                  {form.image_url && (
+                    <div style={{marginTop:8, display:'flex', alignItems:'center', gap:10}}>
+                      <img src={form.image_url} alt="preview"
+                        onError={e => { e.target.style.display='none'; }}
+                        style={{width:56, height:56, objectFit:'contain', borderRadius:8, border:'1px solid var(--border)', background:'#f8fafc'}}/>
+                      <span style={{fontSize:12, color:'var(--muted)'}}>Image preview</span>
+                    </div>
+                  )}
                 </div>
                 <div className="form-row">
                   <div className="form-group">
