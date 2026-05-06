@@ -3,6 +3,7 @@ import { Home, Search, ShoppingCart, ClipboardList, User } from 'lucide-react';
 import { useState, useEffect, createContext, useContext } from 'react';
 import API from './api';
 import HomePage from './pages/Home';
+import SearchPage from './pages/Search';
 import CartPage from './pages/Cart';
 import OrdersPage from './pages/Orders';
 import LoginPage from './pages/Login';
@@ -119,13 +120,15 @@ function ProtectedRoute({ children }) {
 function BottomNav() {
   const location = useLocation();
   const { summary } = useCart();
-  const { isLoggedIn } = useAuth();
   if (['/login'].includes(location.pathname)) return null;
 
   return (
     <nav className="bottom-nav">
       <NavLink to="/" className={({ isActive }) => `nav-btn ${isActive ? 'active' : ''}`} end>
         <Home className="icon" size={22} /><span>Home</span>
+      </NavLink>
+      <NavLink to="/search" className={({ isActive }) => `nav-btn ${isActive ? 'active' : ''}`}>
+        <Search className="icon" size={22} /><span>Search</span>
       </NavLink>
       <NavLink to="/cart" className={({ isActive }) => `nav-btn ${isActive ? 'active' : ''}`}>
         <ShoppingCart className="icon" size={22} />
@@ -152,6 +155,7 @@ export default function App() {
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/" element={<HomePage />} />
+                <Route path="/search" element={<SearchPage />} />
                 <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
                 <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />

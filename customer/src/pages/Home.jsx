@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MapPin, Search, ChevronDown, X } from 'lucide-react';
 import API from '../api';
 import { useAuth, useCart, useAddress } from '../App';
@@ -35,6 +36,7 @@ export const getImg = (p) => {
 };
 
 export default function HomePage() {
+  const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [activeCat, setActiveCat] = useState(null);
@@ -79,10 +81,10 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="search-bar">
+      <div className="search-bar" onClick={() => navigate('/search')} style={{ cursor: 'pointer' }}>
         <Search size={18} color="var(--muted)" />
-        <input placeholder="Search groceries..." value={search}
-          onChange={e => setSearch(e.target.value)} />
+        <input placeholder="Search groceries..." readOnly
+          style={{ cursor: 'pointer', pointerEvents: 'none' }} />
       </div>
 
       <div className="page-content">
