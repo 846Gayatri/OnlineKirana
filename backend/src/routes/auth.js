@@ -100,18 +100,21 @@ router.post('/verify-otp', (req, res, next) => {
 
 /**
  * POST /api/auth/admin-login
- * Admin login with phone + password
+ * Admin login with email or phone + password
  */
 router.post('/admin-login', (req, res, next) => {
   try {
-    const { phone, password } = req.body;
-    
-    if (!phone || !password) {
-      return res.status(400).json({ error: 'Phone and password are required' });
+    const { phone, email, password } = req.body;
+    const identifier = email || phone;
+
+    if (!identifier || !password) {
+      return res.status(400).json({ error: 'Email/phone and password are required' });
     }
 
     const db = getDb();
-    const user = db.prepare('SELECT * FROM users WHERE phone = ? AND role = ?').get(phone, 'admin');
+    const user = email
+      ? db.prepare('SELECT * FROM users WHERE email = ? AND role = ?').get(email.toLowerCase().trim(), 'admin')
+      : db.prepare('SELECT * FROM users WHERE phone = ? AND role = ?').get(phone, 'admin');
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -129,6 +132,7 @@ router.post('/admin-login', (req, res, next) => {
       user: {
         id: user.id,
         phone: user.phone,
+        email: user.email,
         name: user.name,
         role: user.role
       }
