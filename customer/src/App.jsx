@@ -8,6 +8,7 @@ import OrdersPage from './pages/Orders';
 import LoginPage from './pages/Login';
 import ProfilePage from './pages/Profile';
 import PaymentMethodsPage from './pages/PaymentMethods';
+import OrderTrackingPage from './pages/OrderTracking';
 
 const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
@@ -155,6 +156,7 @@ export default function App() {
                 <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                 <Route path="/payment-methods" element={<ProtectedRoute><PaymentMethodsPage /></ProtectedRoute>} />
+                <Route path="/orders/:id/track" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
               </Routes>
               <BottomNav />
             </div>

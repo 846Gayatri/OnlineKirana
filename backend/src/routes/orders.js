@@ -246,6 +246,48 @@ router.get('/:id', requireAuth, (req, res, next) => {
 });
 
 /**
+ * GET /api/orders/:id/track
+ * Customer: Get live tracking timeline for an order
+ */
+router.get('/:id/track', requireAuth, (req, res, next) => {
+  try {
+    const db = getDb();
+    const order = db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?')
+      .get(req.params.id, req.user.id);
+
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    order.items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
+
+    const STEPS = ['pending', 'confirmed', 'packed', 'out_for_delivery', 'delivered'];
+    const currentStep = STEPS.indexOf(order.status);
+    const isCancelled = order.status === 'cancelled';
+
+    // Simulate step timestamps based on created_at (30-min delivery window)
+    const created = new Date(order.created_at).getTime();
+    const OFFSETS_MS = [0, 2 * 60000, 8 * 60000, 18 * 60000, 30 * 60000];
+
+    const timeline = STEPS.map((step, i) => {
+      const done = !isCancelled && i <= currentStep;
+      const active = !isCancelled && i === currentStep && step !== 'delivered';
+      return {
+        step,
+        done,
+        active,
+        timestamp: done ? new Date(created + OFFSETS_MS[i]).toISOString() : null,
+      };
+    });
+
+    // Estimated delivery time = created_at + 30 min
+    const estimatedDelivery = new Date(created + 30 * 60000).toISOString();
+
+    res.json({ order, timeline, estimated_delivery: estimatedDelivery, is_cancelled: isCancelled });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * PATCH /api/orders/:id/status
  * Admin: Update order status
  */
